@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>✨ Spreadsheet Simulator</title>
+  <style>
+    :root {
+      --bg-color: #f9fafb;
+      --text-color: #111827;
+      --cell-bg: #ffffff;
+      --border-color: #e5e7eb;
+      --header-bg: #3b82f6;
+      --header-text: #ffffff;
+      --error-color: #ef4444;
+      --button-bg: #4f46e5;
+      --button-hover: #4338ca;
+    }
+    .dark-mode {
+      --bg-color: #1f2937;
+      --text-color: #f9fafb;
+      --cell-bg: #374151;
+      --border-color: #4b5563;
+      --header-bg: #1e40af;
+      --error-color: #f87171;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 20px;
+      transition: background 0.3s ease;
+    }
+    h1 {
+      text-align: center;
+      color: var(--header-bg);
+      margin-bottom: 20px;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: var(--button-bg);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    button:hover {
+      background-color: var(--button-hover);
+    }
+    input[type="text"] {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background-color: var(--cell-bg);
+      color: var(--text-color);
+    }
+    table {
+      border-collapse: collapse;
+      margin: 0 auto;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    th, td {
+      border: 1px solid var(--border-color);
+      padding: 8px 12px;
+      text-align: center;
+    }
+    th {
+      background-color: var(--header-bg);
+      color: var(--header-text);
+      font-weight: bold;
+    }
+    input.cell-input {
+      width: 100px;
+      padding: 6px;
+      border: none;
+      background: transparent;
+      color: var(--text-color);
+      text-align: center;
+      font-family: inherit;
+    }
+    input.cell-input:focus {
+      outline: 2px solid var(--button-bg);
+      border-radius: 4px;
+    }
+    .error {
+      color: var(--error-color);
+      font-weight: bold;
+    }
+    .mode-toggle {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: var(--button-bg);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <button class="mode-toggle" onclick="toggleDarkMode()">🌓</button>
+  <h1>✨ Spreadsheet Simulator</h1>
+  
+  <div class="controls">
+    <button onclick="evaluateAll()">Calculate</button>
+    <button onclick="saveSheet()">💾 Save</button>
+    <button onclick="loadSheet()">📂 Load</button>
+    <button onclick="clearAll()">❌ Clear</button>
+  </div>
+
+  <table id="spreadsheet">
+    <thead>
+      <tr>
+        <th></th>
+        <th>A</th>
+        <th>B</th>
+        <th>C</th>
+        <th>D</th>
+      </tr>
+    </thead>
+    <tbody id="grid-body"></tbody>
+  </table>
+
+  <script>
+    // Fixed 5x4 grid
+    const ROWS = 5;
+    const COLS = ['A', 'B', 'C', 'D'];
+    const cells = {};
+    let currentSheetName = 'mySheet';
+
+    // Initialize the grid
+    function initGrid() {
+      const gridBody = document.getElementById('grid-body');
+      
+      for (let row = 1; row <= ROWS; row++) {
+        const tr = document.createElement('tr');
+        
+        // Row header
+        const th = document.createElement('th');
+        th.textContent = row;
+        tr.appendChild(th);
+        
+        // Data cells
+        for (let col of COLS) {
+          const td = document.createElement('td');
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'cell-input';
+          const cellId = `${col}${row}`;
+          input.id = cellId;
+          input.placeholder = cellId;
+          
+          // Only track changes for saving
+          input.addEventListener('change', () => saveSheet());
+          
+          cells[cellId] = input;
+          td.appendChild(input);
+          tr.appendChild(td);
+        }
+        
+        gridBody.appendChild(tr);
+      }
+    }
+
+    // Evaluate formulas with functions
+    function evaluateFormula(cellId, formula) {
+      try {
+        let evaluated = formula.toUpperCase();
+        
+        // Process functions (SUM, AVERAGE, etc.)
+        evaluated = evaluated.replace(/(SUM|AVERAGE|MIN|MAX)\(([^)]+)\)/g, (match, fn, range) => {
+          const cellsInRange = parseRange(range);
+          const values = cellsInRange.map(getCellValue).filter(v => v !== null);
+          
+          if (values.length === 0) return '0';
+          
+          switch(fn) {
+            case 'SUM': return values.reduce((a, b) => a + b, 0);
+            case 'AVERAGE': return values.reduce((a, b) => a + b, 0) / values.length;
+            case 'MIN': return Math.min(...values);
+            case 'MAX': return Math.max(...values);
+            default: return '0';
+          }
+        });
+        
+        // Replace cell references (A1, B2, etc.)
+        evaluated = evaluated.replace(/[A-D][1-5]/g, ref => {
+          const val = getCellValue(ref);
+          return val !== null ? val : '0';
+        });
+        
+        // Safe evaluation
+        const result = new Function(`return ${evaluated}`)();
+        if (!Number.isFinite(result)) throw new Error('#VALUE!');
+        
+        cells[cellId].value = result;
+        cells[cellId].classList.remove('error');
+        return result;
+      } catch (error) {
+        cells[cellId].value = error.message.startsWith('#') ? error.message : '#ERROR!';
+        cells[cellId].classList.add('error');
+        return null;
+      }
+    }
+
+    // Helper functions
+    function parseRange(range) {
+      const [start, end] = range.split(':');
+      if (!start || !end) return [];
+      
+      const startCol = COLS.indexOf(start[0]);
+      const startRow = parseInt(start.slice(1));
+      const endCol = COLS.indexOf(end[0]);
+      const endRow = parseInt(end.slice(1));
+      
+      const cellsInRange = [];
+      for (let col = Math.min(startCol, endCol); col <= Math.max(startCol, endCol); col++) {
+        for (let row = Math.min(startRow, endRow); row <= Math.max(startRow, endRow); row++) {
+          cellsInRange.push(`${COLS[col]}${row}`);
+        }
+      }
+      return cellsInRange;
+    }
+
+    function getCellValue(cellId) {
+      const value = cells[cellId]?.value;
+      if (value === undefined || value === '' || value.startsWith('#')) return null;
+      return isNaN(value) ? null : parseFloat(value);
+    }
+
+    function evaluateAll() {
+      for (const cellId in cells) {
+        if (cells[cellId].value.startsWith('=')) {
+          evaluateFormula(cellId, cells[cellId].value.substring(1));
+        }
+      }
+      saveSheet();
+    }
+
+    function saveSheet() {
+      const sheetData = {};
+      for (const cellId in cells) {
+        sheetData[cellId] = cells[cellId].value;
+      }
+      localStorage.setItem(`spreadsheet_${currentSheetName}`, JSON.stringify(sheetData));
+    }
+
+    function loadSheet() {
+      const sheetData = JSON.parse(localStorage.getItem(`spreadsheet_${currentSheetName}`) || '{}');
+      for (const cellId in sheetData) {
+        if (cells[cellId]) {
+          cells[cellId].value = sheetData[cellId];
+        }
+      }
+    }
+
+    function clearAll() {
+      for (const cellId in cells) {
+        cells[cellId].value = '';
+        cells[cellId].classList.remove('error');
+      }
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    // Initialize
+    window.onload = initGrid;
+  </script>
+</body>
+</html>
