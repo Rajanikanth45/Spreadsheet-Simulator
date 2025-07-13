@@ -8,4 +8,4 @@ This is a web-based spreadsheet simulator built using HTML, CSS, and JavaScript.
 - Save/Load via browser storage
 - Light/Dark mode toggle
 
-🔗 Live Demo: 
+🔗 Live Demo: https://rajanikanth45.github.io/Spreadsheet-Simulator/
